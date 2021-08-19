@@ -1,0 +1,5 @@
+/target
+libmpv-rs/
+mpvsource/
+*.mp4
+*.mp3
