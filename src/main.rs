@@ -1,3 +1,10 @@
+use std::time::Duration;
+use std::time::Instant;
+
+use libmpv::FileState;
+use libmpv::Format;
+use libmpv::Mpv;
+use nanorand::Rng;
 use pixels::Pixels;
 use pixels::SurfaceTexture;
 use winit::dpi::PhysicalPosition;
@@ -5,167 +12,100 @@ use winit::event::ElementState;
 use winit::event::MouseButton;
 use winit::event::VirtualKeyCode;
 
-use libmpv::{
-    events::*,
-    render::{OpenGLInitParams, RenderContext, RenderFrameInfo, RenderParam},
-    *,
-};
+use winit::window::Fullscreen;
+use winit::window::WindowId;
 use winit::{
+    dpi::PhysicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     platform::windows::WindowBuilderExtWindows,
     platform::windows::WindowExtWindows,
-    window::WindowBuilder,
-    dpi::PhysicalSize,
     window::Window,
+    window::WindowBuilder,
 };
-// use std::{collections::HashMap, env, ffi::c_void, thread, time::Duration};
 
-// const VIDEO_URL: &str = "https://www.youtube.com/watch?v=DLzxrzFCyOs";
-
-// fn main() -> Result<()> {
-
-//     // use glium::{glutin, Surface};
-
-//     // let event_loop = glutin::event_loop::EventLoop::new();
-//     // let wb = glutin::window::WindowBuilder::new();
-//     // let cb = glutin::ContextBuilder::new();
-//     // let display = glium::Display::new(wb, cb, &event_loop).unwrap();
-
-//     // event_loop.run(move |event, _, control_flow| {
-//     //     let next_frame_time = std::time::Instant::now() +
-//     //         std::time::Duration::from_nanos(16_666_667);
-//     //     *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-
-//     //     match event {
-//     //         glutin::event::Event::WindowEvent { event, .. } => match event {
-//     //             glutin::event::WindowEvent::CloseRequested => {
-//     //                 *control_flow = glutin::event_loop::ControlFlow::Exit;
-//     //                 return;
-//     //             },
-//     //             _ => return,
-//     //         },
-//     //         glutin::event::Event::NewEvents(cause) => match cause {
-//     //             glutin::event::StartCause::ResumeTimeReached { .. } => (),
-//     //             glutin::event::StartCause::Init => (),
-//     //             _ => return,
-//     //         },
-//     //         _ => return,
-//     //     }
-
-//     //     let mut target = display.draw();
-//     //     target.clear_color(0.0, 0.0, 1.0, 1.0);
-//     //     target.finish().unwrap();
-//     // });
-
-//     // Create an `Mpv` and set some properties.
-//     let mut mpv = Mpv::new()?;
-//     // mpv.set_property("volume", 15)?;
-//     // mpv.set_property("vo", "null")?;
-
-//     let mut ev_ctx = mpv.event_context();
-//     ev_ctx.disable_deprecated_events()?;
-//     ev_ctx.observe_property("volume", Format::Int64, 0)?;
-//     ev_ctx.observe_property("demuxer-cache-state", Format::Node, 0)?;
-
-//     mpv.playlist_load_files(&[(&path, FileState::AppendPlay, None)])
-//         .unwrap();
-//     mpv.set_property(name, data)
-//     mpv.set_property("volume", 100).unwrap();
-//     // RenderParam::NextFrameInfo(RenderFrameInfo {flags: render::RenderFrameInfoFlag::Present,})
-//     let context = libmpv::render::RenderContext::new(unsafe { mpv.ctx.as_mut() }, vec![RenderParam::InitParams(OpenGLInitParams {get_proc_address: something_else, ctx: ()}),]).unwrap();
-//     context.render::<()>(3, 1920, 1080, false).unwrap();
-//     loop {
-//         let ev = mpv
-//             .event_context_mut()
-//             .wait_event(600.)
-//             .unwrap_or(Err(Error::Null));
-
-//         match ev {
-//             Ok(Event::EndFile(r)) => {
-//                 println!("Exiting! Reason: {:?}", r);
-//                 break;
-//             }
-
-//             Ok(Event::PropertyChange {
-//                 name: "demuxer-cache-state",
-//                 change: PropertyData::Node(mpv_node),
-//                 ..
-//             }) => {
-//                 let ranges = seekable_ranges(mpv_node).unwrap();
-//                 println!("Seekable ranges updated: {:?}", ranges);
-//             }
-//             Ok(e) => println!("Event triggered: {:?}", e),
-//             Err(e) => println!("Event errored: {:?}", e),
-//         }
-//     }
-//     Ok(())
-// }
-
-// fn something_else(ctx: &(), other: &str) -> *mut c_void {
-//     dbg!(other);
-//     std::ptr::null_mut()
-// }
-
-// fn seekable_ranges(demuxer_cache_state: &MpvNode) -> Option<Vec<(f64, f64)>> {
-//     let mut res = Vec::new();
-//     let props: HashMap<&str, MpvNode> = demuxer_cache_state.to_map()?.collect();
-//     let ranges = props.get("seekable-ranges")?.to_array()?;
-
-//     for node in ranges {
-//         let range: HashMap<&str, MpvNode> = node.to_map()?.collect();
-//         let start = range.get("start")?.to_f64()?;
-//         let end = range.get("end")?.to_f64()?;
-//         res.push((start, end));
-//     }
-
-//     Some(res)
-// }
-
-const WIDTH: u32 = 2560;
-const HEIGHT: u32 = 1440;
+const IGNORED_ITEMS: &[&str] = include!("../included_consts/ignored_items.rs");
+const WALK_DIR_PATH: &str = include_str!("../included_consts/look_path.txt");
 
 fn main() {
+    spawn_mpv_window();
+}
+
+fn spawn_mpv_window() {
+    let path_collection = walkdir::WalkDir::new(WALK_DIR_PATH)
+        .into_iter()
+        .filter_map(|c| c.ok())
+        .filter(|c| c.file_type().is_file())
+        .map(|f| f.path().to_path_buf())
+        .filter(|c| {
+            c.extension()
+                .map(|f| ["mp4", "webm", "mkv"].iter().any(|c| *c == f))
+                .unwrap_or(false)
+        })
+        .filter(|c| {
+            let lossy = c.file_name().unwrap().to_string_lossy();
+            !IGNORED_ITEMS.iter().any(|c| lossy.contains(c))
+        })
+        .map(|f| f.to_string_lossy().replace("\\", "/"))
+        .collect::<Vec<String>>();
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().with_inner_size(PhysicalSize::new(2000, 1000)).build(&event_loop).unwrap();
-    // let window_handle = window.hwnd() as usize;
-    let other_window = WindowBuilder::new()
-        .with_decorations(false)
-        .with_parent_window(window.hwnd() as *mut winapi::shared::windef::HWND__)
-        .with_inner_size(PhysicalSize::new(WIDTH / 2, HEIGHT / 2))
+    let window_one = WindowBuilder::new()
+        .with_maximized(true)
         .build(&event_loop)
         .unwrap();
 
-    let mut pixels = {
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(100, 100, surface_texture).unwrap()
-    };
+    // let window_two = WindowBuilder::new()
+    //     .with_maximized(true)
+    //     .build(&event_loop)
+    //     .unwrap();
+
+    // let mut pixels = {
+    //     let window_size = window.inner_size();
+    //     let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+    //     Pixels::new(100, 100, surface_texture).unwrap()
+    // };
 
     let mut stuff_holder = Vec::new();
-    generate_sub_window(&window, &event_loop, &mut stuff_holder, (0, 0));
-    // generate_sub_window(&window, &event_loop, &mut stuff_holder, (WIDTH / 2, 0));
 
-    let path = std::env::args().nth(1).unwrap();
+    let max_width = 3;
+    let max_height = 3;
+    for w in 0..max_width {
+        for h in 0..max_height {
+            generate_sub_window(
+                &window_one,
+                &event_loop,
+                &mut stuff_holder,
+                (w as f32 / max_width as f32, h as f32 / max_height as f32),
+                (max_width, max_height),
+            );
+        }
+    }
+
+    // let max_width = 2;
+    // let max_height = 2;
+    // for w in 0..max_width {
+    //     for h in 0..max_height {
+    //         generate_sub_window(&window_two, &event_loop, &mut stuff_holder, (w as f32 / max_width as f32, h as f32 / max_height as f32), (max_width, max_height));
+    //     }
+    // }
+
+    let mut counting_instant_array = [(window_one, None)];
+    // let mut counting_instant = None;
 
     event_loop.run(move |event, _, control_flow| {
-        // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-        // dispatched any events. This is ideal for games and similar applications.
-        // *control_flow = ControlFlow::Poll;
-
-        // ControlFlow::Wait pauses the event loop if no events are available to process.
-        // This is ideal for non-game applications that only update in response to user
-        // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-        *control_flow = ControlFlow::Wait;
-
+        let start_time = std::time::Instant::now();
+        *control_flow = ControlFlow::WaitUntil(start_time + Duration::from_millis(20));
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
                 println!("The close button was pressed; stopping");
-                *control_flow = ControlFlow::Exit
+				std::process::exit(0);
+
+                // *control_flow = ControlFlow::Exit;
+				// return;
             }
             Event::WindowEvent {
                 event: WindowEvent::KeyboardInput { input, .. },
@@ -174,10 +114,28 @@ fn main() {
                 if input.virtual_keycode == Some(VirtualKeyCode::P)
                     && input.state == ElementState::Pressed
                 {
-                    println!("P pressed");
-                    for ele in &stuff_holder {
-                        ele.mpv.playlist_load_files(&[(&path, FileState::AppendPlay, None)])
+                    let (window, _) = counting_instant_array
+                        .iter()
+                        .find(|c| c.0.id() == window_id)
                         .unwrap();
+                    window.set_fullscreen(
+                        window.fullscreen().xor(Some(Fullscreen::Borderless(None))),
+                    );
+                }
+
+                if input.virtual_keycode == Some(VirtualKeyCode::Escape) {
+					// *control_flow = ControlFlow::Exit;
+					// return;
+                    std::process::exit(0);
+                }
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Resized(new_size),
+                window_id,
+            } => {
+                for (window, counting) in &mut counting_instant_array {
+                    if window_id == window.id() {
+                        *counting = Some((start_time, new_size));
                     }
                 }
             }
@@ -185,10 +143,15 @@ fn main() {
                 event: WindowEvent::MouseInput { state, button, .. },
                 window_id,
             } => {
-                if button == MouseButton::Right && state == ElementState::Pressed {
-                    if window_id != window.id() {
-                        println!("Wrong window");
-                        return;
+                if state == ElementState::Pressed {
+                    if let Some(stuff) = stuff_holder
+                        .iter()
+                        .find(|c| c.child_window.id() == window_id)
+                    {
+                        if button == MouseButton::Right {
+                            println!("{:?}", stuff.mpv.get_property::<String>("filename"));
+                        } else if button == MouseButton::Left {
+                        }
                     }
                     println!("Right clicked");
                 }
@@ -204,10 +167,10 @@ fn main() {
                 // window.request_redraw();
             }
             Event::RedrawRequested(_) => {
-                pixels.get_frame()[0] = 255;
-                pixels.render().unwrap();
+                // pixels.get_frame()[0] = 255;
+                // pixels.render();
 
-                println!("\nredrawing!\n");
+                // println!("\nredrawing!\n");
                 // Redraw the application.
                 //
                 // It's preferable for applications that do not render continuously to render in
@@ -216,39 +179,125 @@ fn main() {
             }
             _ => (),
         }
+
+        for (window, counting) in &mut counting_instant_array {
+            if let Some((last_point, new_size)) = counting {
+                let dur = start_time.duration_since(*last_point);
+                if dur > Duration::from_millis(100) {
+                    println!("Resizing");
+                    for ele in stuff_holder
+                        .iter()
+                        .filter(|c| c.parent_window_id == window.id())
+                    {
+                        ele.child_window.set_inner_size(PhysicalSize::new(
+                            new_size.width / ele.max.0,
+                            new_size.height / ele.max.1,
+                        ));
+                        ele.child_window.set_outer_position(PhysicalPosition::new(
+                            new_size.width as f32 * ele.position.0,
+                            new_size.height as f32 * ele.position.1,
+                        ));
+                    }
+
+                    *counting = None;
+                }
+            }
+        }
+
+        for ele in &mut stuff_holder {
+            // if let Some(ev) = ele.mpv.event_context_mut().wait_event(0.0) {
+            //     match ev {
+            //         Ok(MpvEvent::EndFile(r)) => {
+            //             println!("Exiting! Reason: {:?}", r);
+            //             break;
+            //         }
+            //         Ok(MpvEvent::StartFile) => {
+
+            //         }
+            //         Ok(MpvEvent::FileLoaded) => {
+
+            //         }
+            //         Ok(_) => (),
+            //         Err(e) => println!("Event errored: {:?}", e),
+            //     }
+            // }
+
+            if ele.kill_time < start_time {
+                ele.mpv
+                    .set_property(
+                        "start",
+                        format!(
+                            "{}%",
+                            nanorand::tls_rng().generate_range(50..950) as f64 / 10.0
+                        ),
+                    )
+                    .ok();
+                ele.mpv.playlist_next_weak().ok();
+                ele.kill_time =
+                    start_time + Duration::from_secs(nanorand::tls_rng().generate_range(3..30));
+                ele.mpv
+                    .playlist_load_files(&[(
+                        &path_collection
+                            [nanorand::tls_rng().generate_range(0..path_collection.len())],
+                        FileState::AppendPlay,
+                        None,
+                    )])
+                    .unwrap();
+            }
+        }
     });
 }
 
-
 struct ItemHolder {
     child_window: Window,
+    parent_window_id: WindowId,
     mpv: Mpv,
+    position: (f32, f32),
+    max: (u32, u32),
+    kill_time: Instant,
 }
 
-fn generate_sub_window(parent_window: &Window, event_loop: &EventLoop<()>, child_window_holder: &mut Vec<ItemHolder> ,position: (u32, u32)) {
-
+fn generate_sub_window(
+    parent_window: &Window,
+    event_loop: &EventLoop<()>,
+    child_window_holder: &mut Vec<ItemHolder>,
+    position: (f32, f32),
+    max: (u32, u32),
+) {
+    let innersize = parent_window.inner_size();
     let child_window = WindowBuilder::new()
         .with_decorations(false)
         .with_parent_window(parent_window.hwnd() as *mut winapi::shared::windef::HWND__)
-        .with_inner_size(PhysicalSize::new(WIDTH / 2, HEIGHT / 2))
-        // .with_position(PhysicalPosition::new(position.0, position.1))
+        .with_inner_size(PhysicalSize::new(
+            innersize.width / max.0,
+            innersize.height / max.1,
+        ))
+        .with_position(PhysicalPosition::new(
+            innersize.width as f32 * position.0,
+            innersize.height as f32 * position.1,
+        ))
         .build(event_loop)
         .unwrap();
-    
+
     let mpv = Mpv::new().unwrap();
-                    mpv.set_property("volume", 100).unwrap();
-                    mpv.set_property("wid", child_window.hwnd() as i64).unwrap();
+    mpv.set_property("volume", 50).unwrap();
+    mpv.set_property("wid", child_window.hwnd() as i64).unwrap();
+    mpv.set_property("panscan", 1).unwrap();
 
     let ev_ctx = mpv.event_context();
 
     ev_ctx.disable_deprecated_events().unwrap();
     ev_ctx.observe_property("volume", Format::Int64, 0).unwrap();
-    ev_ctx.observe_property("demuxer-cache-state", Format::Node, 0).unwrap();
+    ev_ctx
+        .observe_property("demuxer-cache-state", Format::Node, 0)
+        .unwrap();
     println!("Mpv generated");
     child_window_holder.push(ItemHolder {
         child_window,
         mpv,
+        position,
+        kill_time: Instant::now(),
+        max,
+        parent_window_id: parent_window.id(),
     });
-
-
 }

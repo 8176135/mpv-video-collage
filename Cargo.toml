@@ -11,3 +11,5 @@ libmpv = { path = "libmpv-rs", features = ["build_libmpv"] }
 winit = "*"
 winapi = "*"
 pixels = "*"
+nanorand = "*"
+walkdir = "*"

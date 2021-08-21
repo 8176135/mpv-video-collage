@@ -3,3 +3,4 @@ libmpv-rs/
 mpvsource/
 *.mp4
 *.mp3
+included_consts/
