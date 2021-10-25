@@ -4,10 +4,6 @@ version = "0.1.0"
 authors = ["Rex <elsecaller@8176135.xyz>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[build]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 
 [dependencies]
 ureq = { version = "*", features = ["cookies", "json"] }
@@ -19,6 +15,7 @@ pixels = "*"
 nanorand = "*"
 walkdir = "*"
 argh = "*"
+glium = { version = "0.30", features = ["glutin"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 libmpv = { path = "libmpv-rs", features = ["build_libmpv"] }

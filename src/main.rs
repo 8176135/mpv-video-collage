@@ -101,7 +101,7 @@ pub enum SortBy {
     Date,
 }
 
-#[derive(FromArgs)]
+#[derive(FromArgs, Default)]
 /// Create live video collages
 struct InputWindowConfig {
     #[argh(option, default = "2")]
@@ -112,48 +112,71 @@ struct InputWindowConfig {
     /// number of vertical windows
     height: u32,
 
+    // #[argh(option, default = "None")]
+    // parentHWND: Option<u32>,
     // #[argh(positional)]
     // /// password for server
     // password: String,
 }
 
+// mod openglstuff;
+// mod pixels_thingy;
+
 fn main() {
 
+    // pixels_thingy::running();
+
     let args: InputWindowConfig = argh::from_env();
+    //
+    // println!("Input password: ");
+    // let mut password_input = String::new();
+    // std::io::stdin().read_line(&mut password_input).unwrap();
+    //
+    // let agent = ureq::AgentBuilder::new().build();
+    // let res = agent
+    //     .post("https://lan.8176135.xyz:8000/login")
+    //     .send_form(&[(
+    //         "password", &password_input.trim()
+    //     )])
+    //     .unwrap();
+    //
+    // dbg!(res);
+    // let path_collection = RemotePath { agent };
+    // path_collection.get_random();
 
-    println!("Input password: ");
-    let mut password_input = String::new();
-    std::io::stdin().read_line(&mut password_input).unwrap();
+    // let mut args = InputWindowConfig::default();
+    //
+    // // let raw_args: Vec<_> = std::env::args().skip(1).collect();
+    // let mut arg_iterator = std::env::args().skip(1);
+    //
+    // while let Some(arg) = arg_iterator.next() {
+    //     if arg == "-parentHWND" {
+    //         let parent_hwnd: u32 = arg_iterator.next().unwrap().parse().unwrap();
+    //         args.parentHWND = Some(parent_hwnd);
+    //     }
+    // }
+    //
+    // args.width = 2;
+    // args.height = 2;
 
-    let agent = ureq::AgentBuilder::new().build();
-    let res = agent
-        .post("https://lan.8176135.xyz:8000/login")
-        .send_form(&[(
-            "password", &password_input.trim()
-        )])
-        .unwrap();
-
-    dbg!(res);
-    let path_collection = RemotePath { agent };
-    path_collection.get_random();
-    // let path_collection = LocalPath {
-    //     stuff: walkdir::WalkDir::new(WALK_DIR_PATH)
-    //         .into_iter()
-    //         .filter_map(|c| c.ok())
-    //         .filter(|c| c.file_type().is_file())
-    //         .map(|f| f.path().to_path_buf())
-    //         .filter(|c| {
-    //             c.extension()
-    //                 .map(|f| ["mp4", "webm", "mkv"].iter().any(|c| *c == f))
-    //                 .unwrap_or(false)
-    //         })
-    //         .filter(|c| {
-    //             let lossy = c.file_name().unwrap().to_string_lossy();
-    //             !IGNORED_ITEMS.iter().any(|c| lossy.contains(c))
-    //         })
-    //         .map(|f| f.to_string_lossy().replace("\\", "/"))
-    //         .collect::<Vec<String>>()
-    // };
+    let path_collection = LocalPath {
+        stuff: walkdir::WalkDir::new(WALK_DIR_PATH)
+            .into_iter()
+            .filter_map(|c| c.ok())
+            .filter(|c| c.file_type().is_file())
+            .map(|f| f.path().to_path_buf())
+            .filter(|c| {
+                c.extension()
+                    .map(|f| ["mp4", "webm", "mkv"].iter().any(|c| *c == f))
+                    .unwrap_or(false)
+            })
+            .filter(|c| {
+                let lossy = c.file_name().unwrap().to_string_lossy();
+                !IGNORED_ITEMS.iter().any(|c| lossy.contains(c))
+            })
+            .map(|f| f.to_string_lossy().replace("\\", "/"))
+            .collect::<Vec<String>>()
+    };
 
     spawn_mpv_window(path_collection, &args);
 }
@@ -164,6 +187,7 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
         .with_maximized(true)
         .build(&event_loop)
         .unwrap();
+
 
     // let window_two = WindowBuilder::new()
     //     .with_maximized(true)
@@ -183,20 +207,20 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
     for w in 0..max_width {
         for h in 0..max_height {
             #[cfg(target_os = "windows")]
-            {
-                generate_sub_window(
-                    &window_one,
-                    &event_loop,
-                    &mut stuff_holder,
-                    (w as f32 / max_width as f32, h as f32 / max_height as f32),
-                    (max_width, max_height),
-                    &path_collection,
-                );
-            }
+                {
+                    generate_sub_window(
+                        &window_one,
+                        &event_loop,
+                        &mut stuff_holder,
+                        (w as f32 / max_width as f32, h as f32 / max_height as f32),
+                        (max_width, max_height),
+                        &path_collection,
+                    );
+                }
             #[cfg(target_os = "linux")]
-            {
-                generate_windows(&event_loop, &mut stuff_holder, &path_collection);
-            }
+                {
+                    generate_windows(&event_loop, &mut stuff_holder, &path_collection);
+                }
         }
     }
 
@@ -210,9 +234,12 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
 
     // let mut counting_instant_array = [(window_one, None)];
 
+    let initial_delay = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    let mut state = false;
     event_loop.run(move |event, _, control_flow| {
         let start_time = std::time::Instant::now();
         *control_flow = ControlFlow::WaitUntil(start_time + Duration::from_millis(20));
+        // dbg!(&event);
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -250,24 +277,24 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
                 event: WindowEvent::Resized(new_size),
                 window_id,
             } =>
-            {
-                #[cfg(target_os = "windows")]
                 {
-                    for ele in stuff_holder
-                        .iter()
-                        .filter(|c| c.parent_window_id == window_id)
-                    {
-                        ele.child_window.set_inner_size(PhysicalSize::new(
-                            new_size.width / ele.max.0,
-                            new_size.height / ele.max.1,
-                        ));
-                        ele.child_window.set_outer_position(PhysicalPosition::new(
-                            new_size.width as f32 * ele.position.0,
-                            new_size.height as f32 * ele.position.1,
-                        ));
-                    }
+                    #[cfg(target_os = "windows")]
+                        {
+                            for ele in stuff_holder
+                                .iter()
+                                .filter(|c| c.parent_window_id == window_id)
+                            {
+                                ele.child_window.set_inner_size(PhysicalSize::new(
+                                    new_size.width / ele.max.0,
+                                    new_size.height / ele.max.1,
+                                ));
+                                ele.child_window.set_outer_position(PhysicalPosition::new(
+                                    new_size.width as f32 * ele.position.0,
+                                    new_size.height as f32 * ele.position.1,
+                                ));
+                            }
+                        }
                 }
-            }
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
                 window_id,
@@ -278,7 +305,7 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
                         .find(|c| c.child_window.id() == window_id)
                     {
                         if button == MouseButton::Right {
-                            println!("{:?}", stuff.mpv.get_property::<String>("filename"));
+                            // println!("{:?}", stuff.mpv.get_property::<String>("filename"));
                         } else if button == MouseButton::Left {
                         }
                     }
@@ -305,6 +332,25 @@ fn spawn_mpv_window(path_collection: impl RandomPathGenerator + 'static, args: &
                 // It's preferable for applications that do not render continuously to render in
                 // this event rather than in MainEventsCleared, since rendering in here allows
                 // the program to gracefully handle redraws requested by the OS.
+            },
+            Event::DeviceEvent { .. } => {
+                // if std::time::Instant::now() > initial_delay && state == false {
+                //     state = true;
+                //     println!("Ran once");
+                //     for ele in stuff_holder
+                //         .iter()
+                //     {
+                //     ele.child_window.set_maximized(false);
+                //     ele.child_window.set_inner_size(dbg!(PhysicalSize::new(
+                //         2560 / ele.max.0,
+                //         1440 / ele.max.1,
+                //     )));
+                //     ele.child_window.set_outer_position(dbg!(PhysicalPosition::new(
+                //         2560 as f32 * ele.position.0,
+                //         1440 as f32 * ele.position.1,
+                //     )));
+                //     }
+                // }
             }
             _ => (),
         }
@@ -345,7 +391,7 @@ fn append_random_playlist(mpv: &Mpv, path_collection: &impl RandomPathGenerator)
             length_in_seconds, start_pos
         )),
     )])
-    .unwrap();
+        .unwrap();
 }
 
 #[cfg(target_os = "windows")]
@@ -382,13 +428,16 @@ fn generate_windows(
 #[cfg(target_os = "windows")]
 fn generate_sub_window(
     parent_window: &Window,
+    // extra_window: u32,
     event_loop: &EventLoop<()>,
     child_window_holder: &mut Vec<ItemHolderWindows>,
     position: (f32, f32),
     max: (u32, u32),
     path_collection: &impl RandomPathGenerator,
 ) {
+    println!("Build child window");
     let innersize = parent_window.inner_size();
+    // dbg!(parent_window.hwnd());
     let child_window = WindowBuilder::new()
         .with_decorations(false)
         .with_parent_window(parent_window.hwnd() as *mut winapi::shared::windef::HWND__)
@@ -400,6 +449,7 @@ fn generate_sub_window(
             innersize.width as f32 * position.0,
             innersize.height as f32 * position.1,
         ))
+        .with_title(format!("{:?}", position))
         .build(event_loop)
         .unwrap();
 
@@ -407,18 +457,18 @@ fn generate_sub_window(
 
     let id = {
         #[cfg(target_os = "windows")]
-        {
-            dbg!(child_window.hwnd()) as i64
-        }
+            {
+                dbg!(child_window.hwnd()) as i64
+            }
         #[cfg(target_os = "linux")]
-        {
-            dbg!(child_window.xlib_window()).unwrap() as i64
-        }
+            {
+                dbg!(child_window.xlib_window()).unwrap() as i64
+            }
     };
     mpv.set_property("wid", id).unwrap();
 
     append_random_playlist(&mpv, path_collection);
-    append_random_playlist(&mpv, path_collection);
+    // append_random_playlist(&mpv, path_collection);
 
     child_window_holder.push(ItemHolderWindows {
         child_window,
