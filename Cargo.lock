@@ -51,7 +51,6 @@ name = "mpvtester"
 version = "0.1.0"
 dependencies = [
  "libmpv",
- "libmpv-sys",
  "miniquad",
  "nanorand",
  "walkdir",

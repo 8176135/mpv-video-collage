@@ -9,7 +9,7 @@ build = "build.rs"
 # ureq = { version = "*", features = ["cookies", "json"] }
 # serde = { version = "*", features = ["derive"] }
 # serde_json = "*"
-libmpv-sys = { path = "libmpv-rs/libmpv-sys" }
+# libmpv-sys = { path = "libmpv-rs/libmpv-sys" }
 # winit = "*"
 # pixels = "*"
 miniquad = "0.3.0-alpha.37"

@@ -170,12 +170,14 @@ impl<T: RandomPathGenerator> EventHandler for Stage<T> {
 
         // if HAS_FRAME.load(Ordering::SeqCst) {
         // let now = std::time::Instant::now();
-        // println!("asdasd: {:?}", now.duration_since(self.last_time));
+        // println!("Duration since: {:?}", now.duration_since(self.last_time));
         // self.last_time = now;
+
         for ele in &self.mpv_storage {
             ele.render_context
                 .render_sw(
-                    (1280, 720),
+                    1280, 
+                    720,
                     &CStr::from_bytes_with_nul(b"rgba\0").unwrap(),
                     1280 * 4,
                     &mut self.texture_buffer,
@@ -212,9 +214,6 @@ fn main() {
 
         windows_specific::set_parent_window(parent_hwnd);
     }
-
-    // args.width = 2;
-    // args.height = 2;
 
     let walk_dir_base_path =
         std::fs::read_to_string("walk_base_path.txt").unwrap_or(".".to_owned());
