@@ -86,8 +86,9 @@ impl<T: RandomPathGenerator> Stage<T> {
         let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
         let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, &indices);
 
-        let pixels = vec![0; VIDEO_WIDTH * VIDEO_HEIGHT * 4 * count.0 * count.1];
-        let texture = Texture::from_rgba8(ctx, 1280 * 2, 720 * 2, &pixels);
+        let count_size = count.0.max(count.1);
+        let pixels = vec![0; VIDEO_WIDTH * VIDEO_HEIGHT * 4 * count_size.pow(2)];
+        let texture = Texture::from_rgba8(ctx, 1280 * count_size as u16, 720 * count_size as u16, &pixels);
 
         let mut mpv_storage = Vec::new();
 
