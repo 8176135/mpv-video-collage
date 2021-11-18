@@ -1,21 +1,20 @@
-use std::{
-    ffi::CStr,
-    sync::atomic::{AtomicBool, AtomicI32, Ordering},
-};
+use std::ffi::CStr;
 
+use libmpv::events::Event as MpvEvent;
 use libmpv::{
     render::{RenderContext, RenderParam, RenderParamApiType},
     FileState, Format, Mpv,
 };
 use miniquad::*;
 use nanorand::Rng;
-use libmpv::events::Event as MpvEvent;
 
-static HAS_FRAME: AtomicBool = AtomicBool::new(false);
-static WINDOW_HWND: AtomicI32 = AtomicI32::new(0);
+mod windows_specific;
 
 const IGNORED_ITEMS: &[&str] = include!("../included_consts/ignored_items.rs");
 const WALK_DIR_PATH: &str = include_str!("../included_consts/look_path.txt");
+
+const VIDEO_WIDTH: usize = 1280;
+const VIDEO_HEIGHT: usize = 720;
 
 struct LocalPath {
     stuff: Vec<String>,
@@ -62,7 +61,7 @@ struct Vertex {
 
 struct ItemHolder {
     mpv: Mpv,
-    position: (i32, i32),
+    position: (usize, usize),
     size: (i32, i32),
     render_context: RenderContext,
 }
@@ -72,13 +71,12 @@ struct Stage<RPG: RandomPathGenerator> {
     bindings: Bindings,
     texture_buffer: Vec<u8>,
     mpv_storage: Vec<ItemHolder>,
-    last_time: std::time::Instant,
-    parent_hwnd: u32,
+    // last_time: std::time::Instant,
     path_collection: RPG,
 }
 
 impl<T: RandomPathGenerator> Stage<T> {
-    pub fn new(ctx: &mut Context, path_collection: T, parent_hwnd: u32) -> Stage<T> {
+    pub fn new(ctx: &mut Context, path_collection: T, count: (usize, usize)) -> Stage<T> {
         #[rustfmt::skip]
         let vertices: [Vertex; 4] = [
             Vertex { pos : Vec2 { x: -0.5, y: -0.5 }, uv: Vec2 { x: 0., y: 0. } },
@@ -91,85 +89,28 @@ impl<T: RandomPathGenerator> Stage<T> {
         let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
         let index_buffer = Buffer::immutable(ctx, BufferType::IndexBuffer, &indices);
 
-        let pixels = vec![0; 1280 * 720 * 4 * 4];
+        let pixels = vec![0; VIDEO_WIDTH * VIDEO_HEIGHT * 4 * count.0 * count.1];
         let texture = Texture::from_rgba8(ctx, 1280 * 2, 720 * 2, &pixels);
 
         let mut mpv_storage = Vec::new();
 
         {
-            let mut mpv = mpv_setup();
-            mpv.playlist_load_files(&[("blur-tool.mp4", FileState::AppendPlay, None)])
-                .unwrap();
-            mpv_storage.push(ItemHolder {
-                position: (0, 0),
-                size: (1280, 720),
-                render_context: RenderContext::new(
-                    unsafe { mpv.ctx.as_mut() },
-                    vec![
-                        RenderParam::<()>::ApiType(RenderParamApiType::Software),
-                        // RenderParam::<()>::AdvancedControl(true),
-                    ],
-                )
-                .unwrap(),
-                mpv,
-            });
-        }
-
-        {
-            let mut mpv = mpv_setup();
-            mpv.playlist_load_files(&[("blur-tool.mp4", FileState::AppendPlay, None)])
-                .unwrap();
-            mpv_storage.push(ItemHolder {
-                position: (1280, 0),
-                size: (1280, 720),
-                render_context: RenderContext::new(
-                    unsafe { mpv.ctx.as_mut() },
-                    vec![
-                        RenderParam::<()>::ApiType(RenderParamApiType::Software),
-                        // RenderParam::<()>::AdvancedControl(true),
-                    ],
-                )
-                .unwrap(),
-                mpv,
-            });
-        }
-        
-        {
-            let mut mpv = mpv_setup();
-            mpv.playlist_load_files(&[("blur-tool.mp4", FileState::AppendPlay, None)])
-                .unwrap();
-            mpv_storage.push(ItemHolder {
-                position: (1280, 720),
-                size: (1280, 720),
-                render_context: RenderContext::new(
-                    unsafe { mpv.ctx.as_mut() },
-                    vec![
-                        RenderParam::<()>::ApiType(RenderParamApiType::Software),
-                        // RenderParam::<()>::AdvancedControl(true),
-                    ],
-                )
-                .unwrap(),
-                mpv,
-            });
-        }
-        
-        {
-            let mut mpv = mpv_setup();
-            mpv.playlist_load_files(&[("blur-tool.mp4", FileState::AppendPlay, None)])
-                .unwrap();
-            mpv_storage.push(ItemHolder {
-                position: (0, 720),
-                size: (1280, 720),
-                render_context: RenderContext::new(
-                    unsafe { mpv.ctx.as_mut() },
-                    vec![
-                        RenderParam::<()>::ApiType(RenderParamApiType::Software),
-                        // RenderParam::<()>::AdvancedControl(true),
-                    ],
-                )
-                .unwrap(),
-                mpv,
-            });
+            for y in 0..count.1 {
+                for x in 0..count.0 {
+                    let mut mpv = mpv_setup();
+                    append_random_playlist(&mpv, &path_collection);
+                    mpv_storage.push(ItemHolder {
+                        position: (x * VIDEO_WIDTH, y * VIDEO_HEIGHT),
+                        size: (1280, 720),
+                        render_context: RenderContext::new(
+                            unsafe { mpv.ctx.as_mut() },
+                            vec![RenderParam::<()>::ApiType(RenderParamApiType::Software)],
+                        )
+                        .unwrap(),
+                        mpv,
+                    });
+                }
+            }
         }
 
         let bindings = Bindings {
@@ -190,51 +131,22 @@ impl<T: RandomPathGenerator> Stage<T> {
             shader,
         );
 
-        unsafe {
-            bindings::Windows::Win32::UI::WindowsAndMessaging::EnumWindows(
-                Some(search_callback),
-                LPARAM(std::process::id() as isize),
-            );
-        }
+        #[cfg(feature = "parent-hwnd")]
+        windows_specific::init_parent_window();
 
         Stage {
             pipeline,
             bindings,
             texture_buffer: vec![0; 4 * 1280 * 720],
             mpv_storage,
-            parent_hwnd,
-            last_time: std::time::Instant::now(),
+            // last_time: std::time::Instant::now(),
             path_collection,
         }
     }
 }
 
-use bindings::Windows::Win32::Foundation::*;
-unsafe extern "system" fn search_callback(hwnd: HWND, param: LPARAM) -> BOOL {
-    use bindings::Windows::Win32::UI::WindowsAndMessaging::*;
-    let mut temp = 0;
-    GetWindowThreadProcessId(hwnd, &mut temp);
-    if temp == param.0 as u32 && IsWindowVisible(hwnd).as_bool() {
-        println!("{:x}", hwnd.0);
-        WINDOW_HWND.store(hwnd.0 as i32, Ordering::SeqCst);
-        return false.into();
-    }
-    return true.into();
-}
-
 impl<T: RandomPathGenerator> EventHandler for Stage<T> {
     fn update(&mut self, _ctx: &mut Context) {
-        if self.parent_hwnd != 0 {
-            let window_hwnd = WINDOW_HWND.load(Ordering::Relaxed);
-            if window_hwnd != 0 {
-                unsafe {
-                    dbg!(window_hwnd, self.parent_hwnd);
-                    bindings::Windows::Win32::UI::WindowsAndMessaging::SetParent(HWND(window_hwnd as isize), HWND(self.parent_hwnd as isize));
-                }
-                self.parent_hwnd = 0;
-            }
-        }
-
         for ele in self.mpv_storage.iter_mut() {
             if let Some(ev) = ele.mpv.event_context_mut().wait_event(0.0) {
                 match ev {
@@ -255,17 +167,13 @@ impl<T: RandomPathGenerator> EventHandler for Stage<T> {
     }
 
     fn draw(&mut self, ctx: &mut Context) {
-        let t = date::now();
-
         ctx.begin_default_pass(Default::default());
-        // let mut rng = nanorand::tls_rng();
         ctx.apply_pipeline(&self.pipeline);
 
         // if HAS_FRAME.load(Ordering::SeqCst) {
-        // HAS_FRAME.store(false, Ordering::SeqCst);
-        let now = std::time::Instant::now();
+        // let now = std::time::Instant::now();
         // println!("asdasd: {:?}", now.duration_since(self.last_time));
-        self.last_time = now;
+        // self.last_time = now;
         for ele in &self.mpv_storage {
             ele.render_context
                 .render_sw(
@@ -277,8 +185,8 @@ impl<T: RandomPathGenerator> EventHandler for Stage<T> {
                 .expect("Failed to software render");
             self.bindings.images.first().unwrap().update_texture_part(
                 ctx,
-                ele.position.0,
-                ele.position.1,
+                ele.position.0 as i32,
+                ele.position.1 as i32,
                 ele.size.0,
                 ele.size.1,
                 &self.texture_buffer,
@@ -286,32 +194,26 @@ impl<T: RandomPathGenerator> EventHandler for Stage<T> {
         }
 
         ctx.apply_bindings(&self.bindings);
-        for i in 0..1 {
-            let t = t + i as f64 * 0.3;
-
-            // ctx.apply_uniforms(&shader::Uniforms {
-            //     offset: (t.sin() as f32 * 0.5, (t * 3.).cos() as f32 * 0.5),
-            // });
-            ctx.draw(0, 6, 1);
-        }
+        ctx.draw(0, 6, 1);
         ctx.end_render_pass();
 
         ctx.commit_frame();
     }
 }
 
-mod bindings {
-    windows::include_bindings!();
-}
-
 fn main() {
-    let mut arg_iterator = std::env::args().skip(1);
 
-    let mut parent_hwnd: u32 = 0;
-    while let Some(arg) = arg_iterator.next() {
-        if arg == "-parentHWND" {
-            parent_hwnd = arg_iterator.next().unwrap().parse().unwrap();
+    #[cfg(feature = "parent-hwnd")]
+    {
+        let mut arg_iterator = std::env::args().skip(1);
+        let mut parent_hwnd: u32 = 0;
+        while let Some(arg) = arg_iterator.next() {
+            if arg == "-parentHWND" {
+                parent_hwnd = arg_iterator.next().unwrap().parse().unwrap();
+            }
         }
+
+        windows_specific::set_parent_window(parent_hwnd);
     }
 
     // args.width = 2;
@@ -341,7 +243,7 @@ fn main() {
         ..Default::default()
     };
     miniquad::start(conf, move |mut ctx| {
-        UserData::owning(Stage::new(&mut ctx, path_collection, parent_hwnd), ctx)
+        UserData::owning(Stage::new(&mut ctx, path_collection, (3, 2)), ctx)
     });
 }
 
