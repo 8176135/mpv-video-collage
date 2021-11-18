@@ -5,3 +5,4 @@ mpvsource/
 *.mp3
 included_consts/
 /.history
+*.dll
