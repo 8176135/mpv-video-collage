@@ -3,7 +3,7 @@ name = "mpvtester"
 version = "0.1.0"
 authors = ["Rex <elsecaller@8176135.xyz>"]
 edition = "2018"
-
+build = "build.rs"
 
 [dependencies]
 ureq = { version = "*", features = ["cookies", "json"] }
@@ -11,11 +11,14 @@ serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 libmpv-sys = { path = "libmpv-rs/libmpv-sys" }
 winit = "*"
-pixels = "*"
+# pixels = "*"
+miniquad = "0.3.0-alpha.37"
 nanorand = "*"
 walkdir = "*"
 argh = "*"
-glium = { version = "0.30", features = ["glutin"] }
+# glium = { version = "0.30", features = ["glutin"] }
+# fltk = {version = "1.2", features=["enable-glwindow", "no-pango", "fltk-bundled"]}
+windows = "0.21.1"
 
 [target.x86_64-pc-windows-msvc.dependencies]
 libmpv = { path = "libmpv-rs", features = ["build_libmpv"] }
@@ -23,3 +26,6 @@ winapi = "*"
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 libmpv = { path = "libmpv-rs" }
+
+[build-dependencies]
+windows = "0.21.1"

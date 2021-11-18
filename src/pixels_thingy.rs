@@ -86,7 +86,7 @@ pub fn running() {
             .unwrap();
     });
 
-    mpv.playlist_load_files(&[(&"StarCrafts S7 E7 'GG No Re' [SERIES FINALE]-3zom0687XCE.mp4", FileState::AppendPlay, None)])
+    mpv.playlist_load_files(&[(&"aaa.mp4", FileState::AppendPlay, None)])
         .unwrap();
 
     let mut render_context = Some(render_context);
@@ -183,7 +183,7 @@ pub fn running() {
 
                 if let Some(render_context) = &render_context {
                     let frame = pixels.get_frame();
-
+                    
                     let window_size = window_one.inner_size();
                     let stride = (window_size.width * 4) as usize;
                     // println!("{}", stride);

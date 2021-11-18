@@ -19,7 +19,7 @@
 //     display.gl_window().context().get_proc_address(name) as *mut c_void
 // }
 //
-// const VIDEO_URL: &str = "StarCrafts S7 E7 'GG No Re' [SERIES FINALE]-3zom0687XCE.mp4";
+// const VIDEO_URL: &str = "aaa.mp4";
 //
 // #[derive(Debug)]
 // enum UserEvent {
