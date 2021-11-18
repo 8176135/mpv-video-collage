@@ -6,16 +6,16 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-ureq = { version = "*", features = ["cookies", "json"] }
-serde = { version = "*", features = ["derive"] }
-serde_json = "*"
+# ureq = { version = "*", features = ["cookies", "json"] }
+# serde = { version = "*", features = ["derive"] }
+# serde_json = "*"
 libmpv-sys = { path = "libmpv-rs/libmpv-sys" }
 winit = "*"
 # pixels = "*"
 miniquad = "0.3.0-alpha.37"
 nanorand = "*"
 walkdir = "*"
-argh = "*"
+# argh = "*"
 # glium = { version = "0.30", features = ["glutin"] }
 # fltk = {version = "1.2", features=["enable-glwindow", "no-pango", "fltk-bundled"]}
 windows = "0.21.1"
