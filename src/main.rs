@@ -10,9 +10,6 @@ use nanorand::Rng;
 
 mod windows_specific;
 
-const IGNORED_ITEMS: &[&str] = include!("../included_consts/ignored_items.rs");
-const WALK_DIR_PATH: &str = include_str!("../included_consts/look_path.txt");
-
 const VIDEO_WIDTH: usize = 1280;
 const VIDEO_HEIGHT: usize = 720;
 
@@ -202,7 +199,6 @@ impl<T: RandomPathGenerator> EventHandler for Stage<T> {
 }
 
 fn main() {
-
     #[cfg(feature = "parent-hwnd")]
     {
         let mut arg_iterator = std::env::args().skip(1);
@@ -219,20 +215,29 @@ fn main() {
     // args.width = 2;
     // args.height = 2;
 
+    let walk_dir_base_path =
+        std::fs::read_to_string("walk_base_path.txt").unwrap_or(".".to_owned());
+    let ignored_items: Vec<String> = std::fs::read_to_string("ignored_keywords.txt")
+        .unwrap_or("".to_owned())
+        .lines()
+        .filter(|c| !c.is_empty())
+        .map(|c| c.to_owned())
+        .collect();
+
     let path_collection = LocalPath {
-        stuff: walkdir::WalkDir::new(WALK_DIR_PATH)
+        stuff: walkdir::WalkDir::new(walk_dir_base_path)
             .into_iter()
             .filter_map(|c| c.ok())
             .filter(|c| c.file_type().is_file())
             .map(|f| f.path().to_path_buf())
             .filter(|c| {
                 c.extension()
-                    .map(|f| ["mp4", "webm", "mkv"].iter().any(|c| *c == f))
+                    .map(|f| ["mp4", "webm", "mkv", "avi", "wmv", "mov", "m4v"].iter().any(|c| *c == f))
                     .unwrap_or(false)
             })
             .filter(|c| {
                 let lossy = c.file_name().unwrap().to_string_lossy();
-                !IGNORED_ITEMS.iter().any(|c| lossy.contains(c))
+                !ignored_items.iter().any(|c| lossy.contains(c))
             })
             .map(|f| f.to_string_lossy().replace("\\", "/"))
             .collect::<Vec<String>>(),
