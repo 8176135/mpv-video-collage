@@ -23,6 +23,7 @@ checksum = "fbe5e23404da5b4f555ef85ebed98fb4083e55a00c317800bc2a50ede9f3d219"
 [[package]]
 name = "libmpv"
 version = "2.0.1"
+source = "git+https://github.com/8176135/libmpv-rs?branch=software-rendering#9618015093084d339b678f1d27aea11867e1bcdc"
 dependencies = [
  "libmpv-sys",
 ]
@@ -30,6 +31,7 @@ dependencies = [
 [[package]]
 name = "libmpv-sys"
 version = "3.1.0"
+source = "git+https://github.com/8176135/libmpv-rs?branch=software-rendering#9618015093084d339b678f1d27aea11867e1bcdc"
 
 [[package]]
 name = "miniquad"
