@@ -6,3 +6,4 @@ mpvsource/
 included_consts/
 /.history
 *.dll
+*.dll.a
